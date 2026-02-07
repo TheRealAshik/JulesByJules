@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { getJulesClient } from "../lib/jules-client";
-import { Send, Terminal, FileCode, MessageSquare, Activity } from "lucide-react";
+import { Activity, BashArtifact, ChangeSetArtifact, ActivityPlanGenerated, ActivityAgentMessaged, Plan } from "@google/jules-sdk";
+import { Send, Terminal, FileCode, MessageSquare, Activity as ActivityIcon } from "lucide-react";
 import Editor from "@monaco-editor/react";
 
 interface ActivityItem {
@@ -21,7 +22,7 @@ export function SessionStream() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [status, setStatus] = useState<string>("initializing");
-  const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
   const [diffs, setDiffs] = useState<Record<string, unknown>[]>([]);
   const [terminalOutput, setTerminalOutput] = useState<string>("");
   const [chatInput, setChatInput] = useState("");
@@ -32,26 +33,35 @@ export function SessionStream() {
   const terminalRef = useRef<HTMLDivElement>(null);
 
   // Helper to handle events
-  const handleEvent = (event: Record<string, unknown>) => {
+  const handleEvent = (event: Activity) => {
     setActivities(prev => [...prev, { type: String(event.type), data: event, timestamp: Date.now() }]);
+
+    // Handle artifacts if present
+    if (event.artifacts && Array.isArray(event.artifacts)) {
+      event.artifacts.forEach((artifact) => {
+        if (artifact.type === 'bashOutput') {
+          const bash = artifact as unknown as BashArtifact;
+          setTerminalOutput(prev => prev + bash.toString() + "\n");
+        } else if (artifact.type === 'changeSet') {
+          const cs = artifact as unknown as ChangeSetArtifact;
+          const content = cs.gitPatch?.unidiffPatch || cs.source || "";
+          setDiffs(prev => [...prev, { content }]);
+        }
+      });
+    }
 
     switch (event.type) {
       case "planGenerated":
-        setPlan(event.plan as Record<string, unknown>);
-        break;
-      case "progressUpdated":
-        if (event.output) {
-             setTerminalOutput(prev => prev + String(event.output) + "\n");
-        }
-        if (event.diff) {
-            setDiffs(prev => [...prev, event.diff as Record<string, unknown>]);
-        }
+        setPlan((event as ActivityPlanGenerated).plan);
         break;
       case "agentMessaged":
-        setMessages(prev => [...prev, { role: "agent", content: String(event.message) }]);
+        setMessages(prev => [...prev, { role: "agent", content: (event as ActivityAgentMessaged).message }]);
         break;
       case "sessionCompleted":
         setStatus("completed");
+        break;
+      case "sessionFailed":
+        setStatus("failed");
         break;
     }
   };
@@ -71,9 +81,9 @@ export function SessionStream() {
         // Start streaming
         try {
            const stream = await session.stream();
-           for await (const event of (stream as AsyncIterable<unknown>)) {
+           for await (const event of (stream as AsyncIterable<Activity>)) {
              if (!isActive) break;
-             handleEvent(event as Record<string, unknown>);
+             handleEvent(event);
            }
         } catch (e) {
            console.warn("Streaming not available or failed", e);
@@ -131,7 +141,7 @@ export function SessionStream() {
   };
 
   const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
-    { id: "activity", icon: <Activity size={18} />, label: "Plan" },
+    { id: "activity", icon: <ActivityIcon size={18} />, label: "Plan" },
     { id: "code", icon: <FileCode size={18} />, label: "Code" },
     { id: "terminal", icon: <Terminal size={18} />, label: "Terminal" },
     { id: "chat", icon: <MessageSquare size={18} />, label: "Chat" },
@@ -162,7 +172,7 @@ export function SessionStream() {
         <div className={`lg:col-span-1 bg-card rounded-xl border border-border flex flex-col overflow-hidden shadow-sm ${activeTab === "activity" ? "flex" : "hidden lg:flex"}`}>
           <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
-                  <Activity size={18} /> Activity & Plan
+                  <ActivityIcon size={18} /> Activity & Plan
               </h3>
               <span className={`text-xs px-2 py-1 rounded-full ${status === "connected" ? "bg-green-500/10 text-green-500" : status === "error" ? "bg-red-500/10 text-red-500" : "bg-yellow-500/10 text-yellow-500"}`}>
                   {status}
@@ -173,7 +183,7 @@ export function SessionStream() {
                   <div className="bg-primary/5 p-4 rounded-lg border border-primary/20">
                       <h4 className="font-semibold mb-2 text-primary">Current Plan</h4>
                       <ol className="list-decimal pl-4 text-sm space-y-1 text-muted-foreground">
-                          {(plan.steps as Record<string, unknown>[])?.map((step: Record<string, unknown>, i: number) => (
+                          {plan.steps?.map((step, i: number) => (
                               <li key={i}>{String(step.title || step)}</li>
                           ))}
                       </ol>

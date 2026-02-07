@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { getJulesClient } from "../lib/jules-client";
+import { SessionResource } from "@google/jules-sdk";
 import { Link } from "react-router-dom";
 import { Play, Eye, X, Check, Filter, Search, Github } from "lucide-react";
 
 interface Session {
   id: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: string;
   createdAt: string;
   repo: string;
   branch: string;
@@ -18,19 +20,58 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data fetching
     const fetchSessions = async () => {
       try {
-        // Use client to list sessions if available
-        // const cursor = client.sessions();
-        // const page = await cursor;
-        // For now using mock data
+        const client = getJulesClient();
 
-        setSessions([
-          { id: "sess_01", status: "running", createdAt: new Date().toISOString(), repo: "owner/repo-a", branch: "main", prompt: "Fix bug in login" },
-          { id: "sess_02", status: "completed", createdAt: new Date(Date.now() - 3600000).toISOString(), repo: "owner/repo-b", branch: "dev", prompt: "Add analytics" },
-          { id: "sess_03", status: "failed", createdAt: new Date(Date.now() - 7200000).toISOString(), repo: "owner/repo-a", branch: "fix/auth", prompt: "Refactor auth" },
-        ]);
+        // Sync local cache with API
+        try {
+          await client.sync({ limit: 50, depth: 'metadata' });
+        } catch (syncErr) {
+          console.warn("Sync failed, falling back to direct API list", syncErr);
+        }
+
+        // Use SDK select() for rich querying as recommended in README
+        const queryResult = await client.select({
+          from: 'sessions',
+          limit: 50,
+          order: 'desc'
+        });
+
+        // Extract session data from query results
+        // select() returns QueryResult[] which are the session resources themselves
+        const sessionsList = queryResult as unknown as SessionResource[];
+
+        const mappedSessions: Session[] = sessionsList.map(s => {
+          let status = "pending";
+          const state = (s.state || '').toLowerCase();
+
+          if (["inprogress", "planning", "awaitingplanapproval", "awaitinguserfeedback"].includes(state)) {
+            status = "running";
+          } else if (state === "completed") {
+            status = "completed";
+          } else if (state === "failed") {
+            status = "failed";
+          }
+
+          let repo = "Repoless";
+          if (s.source?.type === "githubRepo") {
+            repo = `${s.source.githubRepo.owner}/${s.source.githubRepo.repo}`;
+          } else if (s.sourceContext?.source) {
+            repo = s.sourceContext.source.replace(/^sources\/github\//, "");
+          }
+
+          return {
+            id: s.id,
+            status,
+            createdAt: s.createTime || s.updateTime || new Date().toISOString(),
+            repo,
+            branch: s.sourceContext?.githubRepoContext?.startingBranch || "main",
+            prompt: s.prompt || s.title || "Untitled Session"
+          };
+        });
+
+        setSessions(mappedSessions);
       } catch (err) {
         console.error("Failed to fetch sessions", err);
       } finally {
