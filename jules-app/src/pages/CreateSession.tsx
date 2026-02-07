@@ -43,7 +43,7 @@ export function CreateSession() {
       });
 
       navigate(`/stream/${session.id}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to create session:', err);
       if (err instanceof JulesNetworkError) {
         setError('Network error. Please check your connection.');
@@ -53,8 +53,10 @@ export function CreateSession() {
         setError('Rate limit exceeded. Please try again later.');
       } else if (err instanceof MissingApiKeyError) {
         setError('API Key is missing. Please configure it in Settings.');
-      } else {
+      } else if (err instanceof Error) {
         setError(err.message || 'Failed to create session.');
+      } else {
+        setError('Failed to create session.');
       }
     } finally {
       setLoading(false);

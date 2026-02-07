@@ -1,17 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { getApiKey, setApiKey, clearApiKey } from '../lib/jules-client';
 
 export function Settings() {
-  const [apiKey, setApiKeyState] = useState('');
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    const key = getApiKey();
-    if (key) {
-      setApiKeyState(key);
-      setSaved(true);
-    }
-  }, []);
+  const [apiKey, setApiKeyState] = useState(() => getApiKey() || '');
+  const [saved, setSaved] = useState(() => !!getApiKey());
 
   const handleSave = () => {
     if (apiKey.trim()) {
