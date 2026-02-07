@@ -2,6 +2,18 @@
 const noop = () => {};
 const asyncNoop = async () => {};
 
+// process mock
+export const process = {
+  env: {
+    NODE_ENV: 'development',
+  },
+  cwd: () => '/',
+};
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.process = process;
+}
+
 // fs/promises
 export const readFile = async () => '';
 export const writeFile = async () => {};
@@ -68,7 +80,8 @@ export default {
   createInterface,
   setTimeout,
   Buffer,
-  EventEmitter
+  EventEmitter,
+  process
 };
 
 // Additional crypto

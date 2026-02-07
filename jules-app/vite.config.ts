@@ -29,6 +29,8 @@ export default defineConfig({
       { find: /^node:util$/, replacement: path.resolve(__dirname, "./src/mocks/node-mock.js") },
       { find: /^events$/, replacement: path.resolve(__dirname, "./src/mocks/node-mock.js") },
       { find: /^node:events$/, replacement: path.resolve(__dirname, "./src/mocks/node-mock.js") },
+      { find: /^process$/, replacement: path.resolve(__dirname, "./src/mocks/node-mock.js") },
+      { find: /^node:process$/, replacement: path.resolve(__dirname, "./src/mocks/node-mock.js") },
     ],
   },
 })
