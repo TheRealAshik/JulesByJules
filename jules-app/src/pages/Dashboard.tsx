@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Play, Eye, X, Check, Filter, Search, Github } from "lucide-react";
-import { getJulesClient } from "../lib/jules-client";
 
 interface Session {
   id: string;
@@ -23,12 +22,10 @@ export function Dashboard() {
     // Mock data fetching
     const fetchSessions = async () => {
       try {
-        const client = getJulesClient();
         // Use client to list sessions if available
         // const cursor = client.sessions();
         // const page = await cursor;
         // For now using mock data
-        console.log("Client initialized:", !!client);
 
         setSessions([
           { id: "sess_01", status: "running", createdAt: new Date().toISOString(), repo: "owner/repo-a", branch: "main", prompt: "Fix bug in login" },

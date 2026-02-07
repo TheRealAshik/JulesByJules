@@ -1,14 +1,12 @@
-
-import { useState } from "react";
-import { getJulesClient } from "../lib/jules-client";
-import { useNavigate } from "react-router-dom";
-import { JulesNetworkError, JulesApiError, JulesRateLimitError, MissingApiKeyError } from "@google/jules-sdk";
+import { useState } from 'react';
+import { getJulesClient } from '../lib/jules-client';
+import { useNavigate } from 'react-router-dom';
+import { JulesNetworkError, JulesApiError, JulesRateLimitError, MissingApiKeyError } from '@google/jules-sdk';
 
 export function CreateSession() {
-  const [prompt, setPrompt] = useState("");
-  const [repoUrl, setRepoUrl] = useState("");
-  const [baseBranch, setBaseBranch] = useState("main");
-  const [autoPr, setAutoPr] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [repoUrl, setRepoUrl] = useState('');
+  const [baseBranch, setBaseBranch] = useState('main');
   const [repoless, setRepoless] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +23,12 @@ export function CreateSession() {
 
       let sourceConfig;
       if (!repoless) {
-        // Extract owner/repo from URL
         let githubRepo = repoUrl.trim();
-        if (githubRepo.startsWith("https://github.com/")) {
-            githubRepo = githubRepo.replace("https://github.com/", "");
+        if (githubRepo.startsWith('https://github.com/')) {
+            githubRepo = githubRepo.replace('https://github.com/', '');
         }
-        if (githubRepo.endsWith(".git")) {
-            githubRepo = githubRepo.replace(".git", "");
+        if (githubRepo.endsWith('.git')) {
+            githubRepo = githubRepo.replace('.git', '');
         }
 
         sourceConfig = {
@@ -43,36 +40,21 @@ export function CreateSession() {
       const session = await client.session({
         prompt,
         source: sourceConfig,
-        // autoPr is not directly in SessionConfig based on inferred types,
-        // but maybe it is supported or I should check.
-        // The prompt says "Auto-PR toggle option".
-        // If not in SessionConfig, maybe it is an option for `run`?
-        // Let"s assume it might be passed in config or ignore if not supported by type.
-        // Looking at SDK types earlier: "Maps to `prompt` ... `source` ... `title` ... `requirePlanApproval`"
-        // It didn"t show `autoPr`. But `run` doc said "May create a Pull Request if `autoPr` is true".
-        // Maybe it"s only for `run`?
-        // Let"s check `run` vs `session`.
-        // `session` returns `SessionClient` (interactive). `run` returns `AutomatedSession`.
-        // If I use `session()`, I probably control PR manually or via `approve()`.
-        // I"ll omit autoPr for `session()` if it causes type error, or try to pass it if allowed.
-        // For now I"ll omit it to be safe with types, or put it in generic object if type allows.
-        // SessionConfig interface seemed closed.
-        // I"ll stick to what I saw: prompt, source, title.
       });
 
       navigate(`/stream/${session.id}`);
     } catch (err: any) {
-      console.error("Failed to create session:", err);
+      console.error('Failed to create session:', err);
       if (err instanceof JulesNetworkError) {
-        setError("Network error. Please check your connection.");
+        setError('Network error. Please check your connection.');
       } else if (err instanceof JulesApiError) {
         setError(`API Error: ${err.message} (Status: ${err.status})`);
       } else if (err instanceof JulesRateLimitError) {
-        setError("Rate limit exceeded. Please try again later.");
+        setError('Rate limit exceeded. Please try again later.');
       } else if (err instanceof MissingApiKeyError) {
-        setError("API Key is missing. Please configure it in Settings.");
+        setError('API Key is missing. Please configure it in Settings.');
       } else {
-        setError(err.message || "Failed to create session.");
+        setError(err.message || 'Failed to create session.');
       }
     } finally {
       setLoading(false);
@@ -112,15 +94,6 @@ export function CreateSession() {
               className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-primary focus:ring-2"
             />
             <span className="text-sm font-medium text-foreground">Repoless Session</span>
-          </label>
-           <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoPr}
-              onChange={(e) => setAutoPr(e.target.checked)}
-              className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-primary focus:ring-2"
-            />
-            <span className="text-sm font-medium text-foreground">Auto-PR (Automated Runs only)</span>
           </label>
         </div>
 
@@ -166,7 +139,7 @@ export function CreateSession() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
           ) : null}
-          {loading ? "Starting Session..." : "Start Session"}
+          {loading ? 'Starting Session...' : 'Start Session'}
         </button>
       </form>
     </div>

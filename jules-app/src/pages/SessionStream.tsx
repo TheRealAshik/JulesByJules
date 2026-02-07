@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { getJulesClient } from "../lib/jules-client";
@@ -27,6 +26,7 @@ export function SessionStream() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
 
   // Helper to handle events
   const handleEvent = (event: any) => {
@@ -74,6 +74,7 @@ export function SessionStream() {
            }
         } catch (e) {
            console.warn("Streaming not available or failed", e);
+           setStatus("error");
         }
       } catch (err) {
         console.error("Stream error:", err);
@@ -87,6 +88,18 @@ export function SessionStream() {
       isActive = false;
     };
   }, [sessionId]);
+
+  // Auto-scroll for activities
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activities]);
+
+  // Auto-scroll for terminal
+  useEffect(() => {
+      if (terminalRef.current) {
+          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+      }
+  }, [terminalOutput]);
 
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
@@ -122,7 +135,7 @@ export function SessionStream() {
             <h3 className="font-bold flex items-center gap-2 text-foreground">
                 <Activity size={18} /> Activity & Plan
             </h3>
-            <span className={`text-xs px-2 py-1 rounded-full ${status === "connected" ? "bg-green-500/10 text-green-500" : "bg-yellow-500/10 text-yellow-500"}`}>
+            <span className={`text-xs px-2 py-1 rounded-full ${status === "connected" ? "bg-green-500/10 text-green-500" : status === "error" ? "bg-red-500/10 text-red-500" : "bg-yellow-500/10 text-yellow-500"}`}>
                 {status}
             </span>
         </div>
@@ -193,7 +206,7 @@ export function SessionStream() {
                     <Terminal size={18} /> Terminal Output
                 </h3>
             </div>
-            <div className="flex-1 bg-black p-4 overflow-y-auto font-mono text-xs text-green-400">
+            <div ref={terminalRef} className="flex-1 bg-black p-4 overflow-y-auto font-mono text-xs text-green-400">
                 <pre className="whitespace-pre-wrap break-words">{terminalOutput || "$ Waiting for output..."}</pre>
             </div>
         </div>

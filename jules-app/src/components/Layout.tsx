@@ -12,7 +12,7 @@ export function Layout() {
     if (!apiKey && location.pathname !== '/settings') {
       navigate('/settings');
     }
-  }, [location, navigate]);
+  }, [location]);
 
   return (
     <div className="flex h-screen bg-background text-foreground font-sans antialiased">

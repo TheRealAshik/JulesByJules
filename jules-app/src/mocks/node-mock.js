@@ -46,7 +46,7 @@ export const setTimeout = globalThis.setTimeout;
 
 // buffer
 export const Buffer = {
-  from: (data) => new Uint8Array(data),
+  from: (data) => (typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)),
   isBuffer: () => false,
   concat: () => new Uint8Array(0),
 };

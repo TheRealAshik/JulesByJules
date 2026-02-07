@@ -50,7 +50,7 @@ export function Settings() {
 
         {saved && (
           <p className="text-sm text-green-500 text-center animate-pulse">
-            API Key is configured and ready to use.
+            API Key is configured (Session Storage).
           </p>
         )}
       </div>
