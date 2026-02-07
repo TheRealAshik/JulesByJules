@@ -1,11 +1,12 @@
-
 import { useState, useEffect } from "react";
+import { getJulesClient } from "../lib/jules-client";
+import { SessionResource } from "@google/jules-sdk";
 import { Link } from "react-router-dom";
 import { Play, Eye, X, Check, Filter, Search, Github } from "lucide-react";
 
 interface Session {
   id: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: string;
   createdAt: string;
   repo: string;
   branch: string;
@@ -19,19 +20,58 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data fetching
     const fetchSessions = async () => {
       try {
-        // Use client to list sessions if available
-        // const cursor = client.sessions();
-        // const page = await cursor;
-        // For now using mock data
+        const client = getJulesClient();
 
-        setSessions([
-          { id: "sess_01", status: "running", createdAt: new Date().toISOString(), repo: "owner/repo-a", branch: "main", prompt: "Fix bug in login" },
-          { id: "sess_02", status: "completed", createdAt: new Date(Date.now() - 3600000).toISOString(), repo: "owner/repo-b", branch: "dev", prompt: "Add analytics" },
-          { id: "sess_03", status: "failed", createdAt: new Date(Date.now() - 7200000).toISOString(), repo: "owner/repo-a", branch: "fix/auth", prompt: "Refactor auth" },
-        ]);
+        // Sync local cache with API
+        try {
+          await client.sync({ limit: 50, depth: 'metadata' });
+        } catch (syncErr) {
+          console.warn("Sync failed, falling back to direct API list", syncErr);
+        }
+
+        // Use SDK select() for rich querying as recommended in README
+        const queryResult = await client.select({
+          from: 'sessions',
+          limit: 50,
+          order: 'desc'
+        });
+
+        // Extract session data from query results
+        // select() returns QueryResult[] which are the session resources themselves
+        const sessionsList = queryResult as unknown as SessionResource[];
+
+        const mappedSessions: Session[] = sessionsList.map(s => {
+          let status = "pending";
+          const state = (s.state || '').toLowerCase();
+
+          if (["inprogress", "planning", "awaitingplanapproval", "awaitinguserfeedback"].includes(state)) {
+            status = "running";
+          } else if (state === "completed") {
+            status = "completed";
+          } else if (state === "failed") {
+            status = "failed";
+          }
+
+          let repo = "Repoless";
+          if (s.source?.type === "githubRepo") {
+            repo = `${s.source.githubRepo.owner}/${s.source.githubRepo.repo}`;
+          } else if (s.sourceContext?.source) {
+            repo = s.sourceContext.source.replace(/^sources\/github\//, "");
+          }
+
+          return {
+            id: s.id,
+            status,
+            createdAt: s.createTime || s.updateTime || new Date().toISOString(),
+            repo,
+            branch: s.sourceContext?.githubRepoContext?.startingBranch || "main",
+            prompt: s.prompt || s.title || "Untitled Session"
+          };
+        });
+
+        setSessions(mappedSessions);
       } catch (err) {
         console.error("Failed to fetch sessions", err);
       } finally {
@@ -58,23 +98,23 @@ export function Dashboard() {
   };
 
   return (
-    <div>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
-          <p className="text-muted-foreground">Manage and monitor your AI coding sessions.</p>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
+          <p className="text-sm md:text-base text-muted-foreground">Manage and monitor your AI coding sessions.</p>
         </div>
 
         <div className="flex gap-2 w-full md:w-auto">
-          <Link to="/create" className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition shadow-sm flex items-center gap-2">
+          <Link to="/create" className="w-full md:w-auto bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition shadow-sm flex items-center justify-center gap-2">
             <Play size={16} /> New Session
           </Link>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-card p-4 rounded-xl border border-border mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="relative w-full md:w-64">
+      <div className="bg-card p-4 rounded-xl border border-border flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between shadow-sm">
+        <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
@@ -85,7 +125,7 @@ export function Dashboard() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
           <Filter size={16} className="text-muted-foreground shrink-0" />
           {["all", "running", "completed", "failed", "pending"].map(f => (
             <button
@@ -113,33 +153,33 @@ export function Dashboard() {
           </div>
         ) : (
           filteredSessions.map(session => (
-            <div key={session.id} className="bg-card p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow group">
+            <div key={session.id} className="bg-card p-4 md:p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex flex-col md:flex-row justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(session.status)} uppercase tracking-wide`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] md:text-xs font-medium border ${getStatusColor(session.status)} uppercase tracking-wide`}>
                       {session.status}
                     </span>
-                    <span className="text-xs text-muted-foreground font-mono">{session.id}</span>
-                    <span className="text-xs text-muted-foreground">• {new Date(session.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground font-mono">{session.id}</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground">• {new Date(session.createdAt).toLocaleDateString()}</span>
                   </div>
 
-                  <h3 className="text-lg font-semibold text-foreground mb-2 line-clamp-1 group-hover:text-primary transition-colors">
+                  <h3 className="text-base md:text-lg font-semibold text-foreground mb-2 line-clamp-2 md:line-clamp-1 group-hover:text-primary transition-colors">
                     {session.prompt}
                   </h3>
 
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Github size={14} />
-                      <span className="font-mono">{session.repo}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs md:text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <Github size={14} className="shrink-0" />
+                      <span className="font-mono truncate">{session.repo}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted rounded text-xs font-mono">
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-muted rounded text-[10px] md:text-xs font-mono w-fit">
                       Branch: {session.branch}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start md:self-center border-t md:border-t-0 pt-4 md:pt-0 w-full md:w-auto justify-end">
+                <div className="flex items-center gap-2 self-end md:self-center border-t md:border-t-0 pt-4 md:pt-0 w-full md:w-auto justify-end">
                    <Link
                     to={`/stream/${session.id}`}
                     className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
